@@ -1,12 +1,11 @@
 import { google } from 'googleapis';
 import { v1, v1p1beta1 } from '@google-cloud/asset';
+import Keyv from 'keyv';
 
 const assetClientv1 = new v1.AssetServiceClient();
-const assetClientv1p1beta1 = new v1p1beta1.AssetServiceClient();
+//const assetClientv1p1beta1 = new v1p1beta1.AssetServiceClient();
 
-
-var resourcesProcessed = [];
-var policiesProcessed = [];
+const store = new Keyv();
 
 function getResources(parent) {
     return new Promise((resolve, reject) => {
@@ -17,7 +16,13 @@ function getResources(parent) {
             if (err) {
                 reject(err);
             } else {
-                resolve(res);
+                store.set('resources', preprocessResources(res))
+                    .then(() => {
+                        resolve(res);
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
             }
         });
     });
@@ -25,13 +30,19 @@ function getResources(parent) {
 
 function getPolicies(parent) {
     return new Promise((resolve, reject) => {
-        assetClientv1p1beta1.searchAllIamPolicies({
+        assetClientv1.searchAllIamPolicies({
             scope: parent,
         }, (err, res) => {
             if (err) {
                 reject(err);
             } else {
-                resolve(res);
+                store.set('policies', preprocessPolicies(res))
+                    .then(() => {
+                        resolve(res);
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
             }
         });
     });
@@ -39,12 +50,15 @@ function getPolicies(parent) {
 
 function getRoles(parent) {
     return new Promise((resolve, reject) => {
+        // authenticate to google api
         google.auth.getClient({
             scopes: ['https://www.googleapis.com/auth/cloud-platform']
         }).then((authClient) => {
             //console.log(`auth OK ${JSON.stringify(authClient)}`);
             const googleIam = google.iam({ version: 'v1', auth: authClient });
-            var rolesProcessed = {};
+            var rolesProcessed = {}; //roles data with permissions
+
+            // get predefined roles from API
             const promiseRolesGlobal = googleIam.roles.list({
                 "view": "FULL",
             }).then((res) => {
@@ -56,9 +70,10 @@ function getRoles(parent) {
                         stage: role.stage,
                         includedPermissions: role.includedPermissions
                     };
-                });
+                }); //for each predefined role
             });
 
+            //get custom roles from project/organization
             const promiseRolesProject = googleIam.roles.list({
                 "parent": parent,
                 "view": "FULL",
@@ -77,7 +92,13 @@ function getRoles(parent) {
             });
 
             Promise.all([promiseRolesGlobal, promiseRolesProject]).then(() => {
-                resolve(rolesProcessed);
+                store.set('roles', rolesProcessed)
+                    .then(() => {
+                        resolve(rolesProcessed);
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
             }).catch((err) => {
                 reject(err);
             });
@@ -86,6 +107,7 @@ function getRoles(parent) {
         });
     })
 }
+
 
 
 function preprocessResources(resources, skipSubResources = true) {
@@ -110,6 +132,7 @@ function preprocessResources(resources, skipSubResources = true) {
         }
     } //trimApiFromResourceName()
 
+    let resourcesProcessed = [];
     resources.forEach((resource) => {
         if (!notResources.includes(resource.assetType) &&
             (!skipSubResources || resource.resource.parent.split('/').length <= 5)) {
@@ -121,10 +144,12 @@ function preprocessResources(resources, skipSubResources = true) {
             });
         }
     });
+    return resourcesProcessed;
 }
 
 
 function preprocessPolicies(policies) {
+    let policiesProcessed = [];
     policies.forEach((policy) => {
         //        console.log(policy);
         policy.policy.bindings.forEach((binding) => {
@@ -139,42 +164,52 @@ function preprocessPolicies(policies) {
             })
         })
     })
+    return policiesProcessed;
 }
 
 /************************************/
 
 
 
-const promiseResources = getResources('projects/security-demo-40net');
-/*    .then((resourcesFromApi) => {
+const loadResources = getResources('projects/security-demo-40net')
+    .then((resourcesFromApi) => {
         preprocessResources(resourcesFromApi);
-        console.log(JSON.stringify(resourcesProcessed, null, 4));
+        console.log(`Collected ${resourcesFromApi.length} resources`);
     })
     .catch((err) => {
         console.error(err);
     });
-*/
 
-getRoles()
+
+const loadRoles = getRoles()
     .then((rolesAll) => {
-        for (let name in rolesAll) {
-            console.log(name);
-        }
-        //console.log(JSON.stringify(rolesFromApi, null, 4));
+        console.log(`Collected ${Object.keys(rolesAll).length} roles`);
     })
     .catch((err) => {
         console.error(err);
-        console.error("dupa");
     });
 
-/*
-getPolicies('projects/security-demo-40net')
-.then((policiesFromApi) => {
-    preprocessPolicies(policiesFromApi);
-    //console.log(JSON.stringify(policiesProcessed, null, 4));
-})
-.catch((err) => {
-    console.error(err);
-});
 
-*/
+const loadPolicies = getPolicies('projects/security-demo-40net')
+    .then((policiesFromApi) => {
+        preprocessPolicies(policiesFromApi);
+        console.log(`Collected ${policiesFromApi.length} policies`);
+    })
+    .catch((err) => {
+        console.error(err);
+    });
+
+Promise.all([loadResources, loadRoles, loadPolicies]).then(() => {
+    console.log('all done');
+    store.get('resources').then((resources) => {
+        console.log(`resources from store: ${resources.length}`);
+    });
+    store.get('roles').then((roles) => {
+        console.log(`roles from store: ${roles.length}`);
+    });
+    store.get('policies').then((policies) => {
+        console.log(`policies from store: ${policies.length}`);
+    });
+
+
+});
