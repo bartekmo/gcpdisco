@@ -16,7 +16,8 @@ function getResources(parent) {
             if (err) {
                 reject(err);
             } else {
-                store.set('resources', preprocessResources(res))
+                let resourcesProcessed = preprocessResources(res);
+                Promise.all([store.set('resources', resourcesProcessed), store.set('resourceNames', Object.keys(resourcesProcessed))])
                     .then(() => {
                         resolve(res);
                     })
@@ -36,7 +37,8 @@ function getPolicies(parent) {
             if (err) {
                 reject(err);
             } else {
-                store.set('policies', preprocessPolicies(res))
+                let policiesProcessed = preprocessPolicies(res);
+                Promise.all([store.set('policies', policiesProcessed), store.set('policyIds', Object.keys(policiesProcessed))])
                     .then(() => {
                         resolve(res);
                     })
@@ -92,7 +94,7 @@ function getRoles(parent) {
             });
 
             Promise.all([promiseRolesGlobal, promiseRolesProject]).then(() => {
-                store.set('roles', rolesProcessed)
+                Promise.all([store.set('roles', rolesProcessed), store.set('roleNames', Object.keys(rolesProcessed))])
                     .then(() => {
                         resolve(rolesProcessed);
                     })
@@ -108,40 +110,40 @@ function getRoles(parent) {
     })
 }
 
+function formatResourceName(resource) {
+    switch (resource.assetType) {
+        case 'storage.googleapis.com/Bucket':
+            return resource.resource.data.fields.id.stringValue;
+        case 'iam.googleapis.com/ServiceAccount':
+            return resource.resource.data.fields.email.stringValue;
+        default:
+            return trimApiFromResourceName(resource.name) ?? resource.name;
+    }
+} //formatResourceName()
 
+function trimApiFromResourceName(resourceName) {
+    let splitName = resourceName.split('/');
+    if (splitName.length > 1 && splitName[3] === 'projects') {
+        return splitName.slice(3).join('/');
+    } else {
+        return null;
+    }
+} //trimApiFromResourceName()
 
 function preprocessResources(resources, skipSubResources = true) {
     const notResources = ['serviceusage.googleapis.com/Service'];
-    function formatResourceName(resource) {
-        switch (resource.assetType) {
-            case 'storage.googleapis.com/Bucket':
-                return resource.resource.data.fields.id.stringValue;
-            case 'iam.googleapis.com/ServiceAccount':
-                return resource.resource.data.fields.email.stringValue;
-            default:
-                return trimApiFromResourceName(resource.name) ?? resource.name;
-        }
-    } //formatResourceName()
 
-    function trimApiFromResourceName(resourceName) {
-        let splitName = resourceName.split('/');
-        if (splitName.length > 1 && splitName[3] === 'projects') {
-            return splitName.slice(3).join('/');
-        } else {
-            return null;
-        }
-    } //trimApiFromResourceName()
 
-    let resourcesProcessed = [];
+    let resourcesProcessed = {};
     resources.forEach((resource) => {
         if (!notResources.includes(resource.assetType) &&
             (!skipSubResources || resource.resource.parent.split('/').length <= 5)) {
-            resourcesProcessed.push({
+            resourcesProcessed[resource.name] = {
                 name: resource.name,
                 displayName: formatResourceName(resource),
                 type: resource.assetType,
                 parent: trimApiFromResourceName(resource.resource.parent) ?? resource.resource.parent
-            });
+            };
         }
     });
     return resourcesProcessed;
@@ -149,13 +151,15 @@ function preprocessResources(resources, skipSubResources = true) {
 
 
 function preprocessPolicies(policies) {
-    let policiesProcessed = [];
+    let policiesPerMember = [];
     policies.forEach((policy) => {
         //        console.log(policy);
         policy.policy.bindings.forEach((binding) => {
             //            console.log(binding);
             binding.members.forEach((member) => {
-                policiesProcessed.push({
+                // policy binding is identified uniquely by attachment point + role
+                let policyId = `${trimApiFromResourceName(policy.resource)}::${binding.role}`;
+                policiesPerMember.push({
                     attachmentPoint: policy.resource,
                     role: binding.role,
                     member: member,
@@ -164,16 +168,40 @@ function preprocessPolicies(policies) {
             })
         })
     })
-    return policiesProcessed;
+    return policiesPerMember;
+}
+
+async function processPoliciesToPermissions() {
+    const roles = await store.get('roles');
+    const policies = await store.get('policies');
+    let policiesExpanded = [];
+
+    policies.forEach((policy) => {
+        console.log(roles[policy.role]);
+        roles[policy.role].includedPermissions.forEach((permission) => {
+            policiesExpanded.push({
+                attachmentPoint: policy.resource,
+                role: binding.role,
+                member: member,
+                condition: binding.condition,
+                permission: permission
+            });
+        }); //for each permission in role
+    }); //for each policy
+    return store.set('policiesExpanded', policiesExpanded);
 }
 
 /************************************/
 
+// Getters
+
+function getServices() { }
+
+/******************************** */
 
 
 const loadResources = getResources('projects/security-demo-40net')
     .then((resourcesFromApi) => {
-        preprocessResources(resourcesFromApi);
         console.log(`Collected ${resourcesFromApi.length} resources`);
     })
     .catch((err) => {
@@ -181,7 +209,7 @@ const loadResources = getResources('projects/security-demo-40net')
     });
 
 
-const loadRoles = getRoles()
+const loadRoles = getRoles('projects/security-demo-40net')
     .then((rolesAll) => {
         console.log(`Collected ${Object.keys(rolesAll).length} roles`);
     })
@@ -192,7 +220,6 @@ const loadRoles = getRoles()
 
 const loadPolicies = getPolicies('projects/security-demo-40net')
     .then((policiesFromApi) => {
-        preprocessPolicies(policiesFromApi);
         console.log(`Collected ${policiesFromApi.length} policies`);
     })
     .catch((err) => {
@@ -201,15 +228,23 @@ const loadPolicies = getPolicies('projects/security-demo-40net')
 
 Promise.all([loadResources, loadRoles, loadPolicies]).then(() => {
     console.log('all done');
-    store.get('resources').then((resources) => {
+    store.get('resourceNames').then((resources) => {
         console.log(`resources from store: ${resources.length}`);
     });
-    store.get('roles').then((roles) => {
+    store.get('roleNames').then((roles) => {
         console.log(`roles from store: ${roles.length}`);
     });
     store.get('policies').then((policies) => {
         console.log(`policies from store: ${policies.length}`);
+        //console.log(policies);
     });
 
-
+    processPoliciesToPermissions()
+        .then(() => {
+            store.get('policiesExpanded').then((policiesExpanded) => {
+                console.log(`policiesExpanded from store: ${policiesExpanded.length}`);
+            });
+        })
 });
+
+
