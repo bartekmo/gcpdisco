@@ -60,37 +60,38 @@ function getRoles(parent) {
             const googleIam = google.iam({ version: 'v1', auth: authClient });
             var rolesProcessed = {}; //roles data with permissions
 
+            // fetches every page of googleIam.roles.list for the given params
+            function fetchAllRoles(params, pageToken) {
+                return googleIam.roles.list({
+                    ...params,
+                    pageToken: pageToken,
+                }).then((res) => {
+                    if (res.data.roles) {
+                        res.data.roles.forEach((role) => {
+                            rolesProcessed[role.name] = {
+                                name: role.name,
+                                title: role.title,
+                                description: role.description,
+                                stage: role.stage,
+                                includedPermissions: role.includedPermissions
+                            };
+                        });
+                    }
+                    if (res.data.nextPageToken) {
+                        return fetchAllRoles(params, res.data.nextPageToken);
+                    }
+                });
+            }
+
             // get predefined roles from API
-            const promiseRolesGlobal = googleIam.roles.list({
+            const promiseRolesGlobal = fetchAllRoles({
                 "view": "FULL",
-            }).then((res) => {
-                res.data.roles.forEach((role) => {
-                    rolesProcessed[role.name] = {
-                        name: role.name,
-                        title: role.title,
-                        description: role.description,
-                        stage: role.stage,
-                        includedPermissions: role.includedPermissions
-                    };
-                }); //for each predefined role
             });
 
             //get custom roles from project/organization
-            const promiseRolesProject = googleIam.roles.list({
+            const promiseRolesProject = fetchAllRoles({
                 "parent": parent,
                 "view": "FULL",
-            }).then((res) => {
-                if (res.data.roles) {
-                    res.data.roles.forEach((role) => {
-                        rolesProcessed[role.name] = {
-                            name: role.name,
-                            title: role.title,
-                            description: role.description,
-                            stage: role.stage,
-                            includedPermissions: role.includedPermissions
-                        };
-                    });
-                }
             });
 
             Promise.all([promiseRolesGlobal, promiseRolesProject]).then(() => {
