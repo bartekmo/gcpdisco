@@ -1,0 +1,15 @@
+{
+  "name": "gcp-disco",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/asset": "^7.0.1",
+    "googleapis": "^176.0.0"
+  }
+}
