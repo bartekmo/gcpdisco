@@ -244,6 +244,10 @@ function policiesToEntitlements(policies, roles) {
         return 'write';
     }
 
+    function serviceFromPermission(permission) {
+        return permission.split('.')[0];
+    }
+
     const pipeEntitlements = redis.pipeline();
     let entitlements = {};
     for (const policy of policies) {
@@ -251,11 +255,12 @@ function policiesToEntitlements(policies, roles) {
             const role = Object.values(roles).find(obj => { return obj.name == binding.role });
             for (const member of binding.members) {
                 for (const permission of role.includedPermissions) {
-                    //pipeEntitlements.call('JSON.SET', `entitlements:${policy.resource}`, '$', JSON.stringify(
-                    let entitlementId = `${permission}:${member}:${policy.resource}`;
+                    const service = serviceFromPermission(permission);
+                    const entitlementId = `${permission}:${member}:${policy.resource}`;
                     if (!entitlements[entitlementId]) {
                         entitlements[entitlementId] = {
                             permission: permission,
+                            service: service,
                             resource: policy.resource,
                             resourceDisplayName: normalizeResourceName(policy.resource),
                             member: member,
@@ -274,14 +279,16 @@ function policiesToEntitlements(policies, roles) {
                             attachmentPoint: policy.resource
                         })
                     }
-
-                    //))
                 }
             }
         }
         // save entitlements for policy and reset local variable
         for (const entId in entitlements) {
+            const ent = entitlements[entId];
             pipeEntitlements.call('JSON.SET', `entitlements:${entId}`, '$', JSON.stringify(entitlements[entId]));
+            pipeEntitlements.sadd('idx:identities', ent.member);
+            pipeEntitlements.sadd(`idx:services:${ent.member}`, ent.service);
+            pipeEntitlements.sadd(`idx:member:${ent.member}:service:${ent.service}`, entId);
         }
         pipeEntitlements.exec();
         entitlements = {};
@@ -306,21 +313,10 @@ function normalizeResourceName(resourceName) {
 // Getters
 
 function getIdentities() {
-    return new Promise((resolve, reject) => {
-        store.get('policies')
-            .then((policiesPerUser) => {
-                var res = new Set();
-                policiesPerUser.forEach((policy) => {
-                    res.add(policy.member);
-                })
-                resolve(res);
-            })
-            .catch((err) => {
-                reject(err);
-            })
-    });
+    return redis.smembers('idx:identities');
 }
 
+/*
 function getServices(identity) {
     return new Promise((resolve, reject) => {
         var res = new Set();
@@ -348,42 +344,61 @@ function getServices(identity) {
             })
     })
 }
+    */
 
-function getEntitlements(identity, service) { }
+function getServices(identity) {
+    return redis.smembers(`idx:services:${identity}`);
+}
+
+async function getEntitlements(member, service) {
+    const ids = await redis.smembers(`idx:member:${member}:service:${service}`);
+    if (ids.length === 0) return [];
+    const pipeline = redis.pipeline();
+    ids.forEach(id => pipeline.call('JSON.GET', `entitlements:${id}`));
+    const results = await pipeline.exec();
+    return results.map(([err, val]) => JSON.parse(val));
+}
 
 /******************************** */
 
 
 const loadResourcesPromise = loadResources('projects/security-demo-40net')
     .then((resourcesFromApi) => {
-        console.log(`Collected ${resourcesFromApi.length} resources`);
+        console.log(`Collected ${resourcesFromApi.length} resources from @google-cloud/asset.v1.AssetServiceClient().listAssets()`);
         return resourcesFromApi;
     })
 
 
 const loadRolesPromise = loadRoles('projects/security-demo-40net')
     .then((rolesAll) => {
-        console.log(`Collected ${Object.keys(rolesAll).length} roles`);
+        console.log(`Collected ${Object.keys(rolesAll).length} roles from googleapis.iam.roles.list()`);
         return rolesAll;
     })
 
 
 const loadPoliciesPromise = loadPolicies('projects/security-demo-40net')
     .then((policiesFromApi) => {
-        console.log(`Collected ${policiesFromApi.length} policies`);
+        console.log(`Collected ${policiesFromApi.length} policies from @google-cloud/asset.v1.AssetServiceClient().searchAllIamPolicies()`);
         return policiesFromApi;
     })
 
 
 Promise.all([loadResourcesPromise, loadRolesPromise, loadPoliciesPromise])
-    .then(([resourcesFromApi, roles, policiesFromApi]) => {
+    .then(async ([resourcesFromApi, roles, policiesFromApi]) => {
         console.log('all done. Loaded:');
         console.log(` - ${policiesFromApi.length} policies`);
         console.log(` - ${resourcesFromApi.length} resources`);
-        console.log(` - ${roles.length} roles`);
+        console.log(` - ${Object.keys(roles).length} roles`);
 
-
-        policiesToEntitlements(policiesFromApi, roles);
+        await policiesToEntitlements(policiesFromApi, roles);
+        const identities = await getIdentities()
+        //console.log(identities);
+        const services = await getServices('user:bamo@gcp.40net.cloud');
+        //console.log(services);
+        getEntitlements('user:bamo@gcp.40net.cloud', 'iam')
+            .then((res) => {
+                console.log(res);
+            })
     });
 
 
