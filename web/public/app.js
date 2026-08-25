@@ -357,6 +357,12 @@ function closeFilterPopover() {
   el.filterBtn.setAttribute('aria-expanded', 'false');
 }
 
+function positionFilterPopover() {
+  const rect = el.filterBtn.getBoundingClientRect();
+  el.filterPopover.style.top = `${rect.bottom + 6}px`;
+  el.filterPopover.style.left = `${rect.left}px`;
+}
+
 async function loadRole(roleName) {
   if (state.roleCache.has(roleName)) {
     return state.roleCache.get(roleName);
@@ -525,6 +531,7 @@ el.filterBtn.addEventListener('click', (e) => {
   if (isOpen) {
     closeFilterPopover();
   } else {
+    positionFilterPopover();
     el.filterPopover.hidden = false;
     el.filterBtn.setAttribute('aria-expanded', 'true');
   }
@@ -539,6 +546,14 @@ document.addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !el.filterPopover.hidden) closeFilterPopover();
 });
+
+window.addEventListener('resize', () => {
+  if (!el.filterPopover.hidden) positionFilterPopover();
+});
+
+window.addEventListener('scroll', () => {
+  if (!el.filterPopover.hidden) positionFilterPopover();
+}, true);
 
 el.filterClear.addEventListener('click', () => {
   state.entFilters = createEmptyEntFilters();

@@ -239,10 +239,6 @@ main {
   background: #fff;
 }
 
-.filter-wrap {
-  position: relative;
-}
-
 .filter-btn {
   display: inline-flex;
   align-items: center;
@@ -284,10 +280,8 @@ main {
 }
 
 .filter-popover {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  z-index: 10;
+  position: fixed;
+  z-index: 100;
   width: 320px;
   max-height: 380px;
   overflow: auto;
