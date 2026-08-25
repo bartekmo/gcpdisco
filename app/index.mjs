@@ -1,12 +1,10 @@
 import { google } from 'googleapis';
 import { v1, v1p1beta1 } from '@google-cloud/asset';
-import Keyv from 'keyv';
 import Redis from 'ioredis';
 
 const assetClientv1 = new v1.AssetServiceClient();
 //const assetClientv1p1beta1 = new v1p1beta1.AssetServiceClient();
 
-const store = new Keyv();
 const redis = new Redis(6379, 'redis');
 
 function loadResources(parent) {
@@ -53,12 +51,7 @@ function loadPolicies(parent) {
                     pipePoliciesRaw.call('JSON.SET', `policiesRaw:${policy.resource}`, '$', JSON.stringify(policy));
                 }
 
-                //let policiesProcessed = preprocessPolicies(res);
-                Promise.all([
-                    pipePoliciesRaw.exec(),
-                    //store.set('policies', policiesProcessed),
-                    //    store.set('policyIds', Object.keys(policiesProcessed))
-                ])
+                pipePoliciesRaw.exec()
                     .then(() => {
                         resolve(res);
                     })
@@ -120,7 +113,7 @@ function loadRoles(parent) {
                     pipeRoles.call('JSON.SET', `roles:${role.name}`, '$', JSON.stringify(role));
                 }
 
-                Promise.all([pipeRoles.exec(), store.set('roles', rolesProcessed), store.set('roleNames', Object.keys(rolesProcessed))])
+                pipeRoles.exec()
                     .then(() => {
                         resolve(rolesProcessed);
                     })
@@ -176,7 +169,6 @@ function preprocessResources(resources, skipSubResources = true) {
     return resourcesProcessed;
 }
 
-
 function preprocessPolicies(policies) {
     let policiesPerMember = [];
     policies.forEach((policy) => {
@@ -198,39 +190,6 @@ function preprocessPolicies(policies) {
     return policiesPerMember;
 }
 
-/*
-async function processPoliciesToPermissions() {
-    const roles = await store.get('roles');
-    const policies = await store.get('policies');
-    let policiesExpanded = [];
-
-    console.error('processPoliciesToPermissions called');
-    return [];
-
-    policies.forEach((policy) => {
-        //console.log(roles[policy.role]);
-        roles[policy.role].includedPermissions.forEach((permission) => {
-            if (policiesExpanded[`${permission}::${policy.member}`]) {
-                policiesExpanded[permission].push({
-                    source: 'direct',
-                    attachmentPoint: policy.resource,
-                    role: policy.role,
-                    condition: policy.condition
-                });
-            } else {
-                policiesExpanded[`${permission}::${policy.member}`] = [{
-                    source: 'direct',
-                    attachmentPoint: policy.resource,
-                    role: policy.role,
-                    condition: policy.condition
-                }];
-            }
-
-        }); //for each permission in role
-    }); //for each policy
-    return store.set('entitlements', policiesExpanded);
-}
-    */
 
 function policiesToEntitlements(policies, roles) {
     function readPermissionCategory(permission) {
@@ -316,47 +275,28 @@ function getIdentities() {
     return redis.smembers('idx:identities');
 }
 
-/*
-function getServices(identity) {
-    return new Promise((resolve, reject) => {
-        var res = new Set();
-        const promisePermissions = store.get('entitlements')
-            .then((entitlements) => {
-                Object.keys(entitlements).forEach((permissionUser) => {
-                    if (permissionUser.split('::')[1] == identity) {
-                        res.add(normalizeService(permissionUser.split('::')[0].split('.')[0]));
-                    }
-                })
-            });
-        const promiseResources = store.get('resources')
-            .then((resources) => {
-                //console.log(resources);
-                Object.values(resources).forEach((resource) => {
-                    res.add(normalizeService(resource.type.split('/')[0]));
-                })
-            });
-        Promise.all([promisePermissions, promiseResources])
-            .then(() => {
-                resolve(res);
-            })
-            .catch((err) => {
-                reject(err);
-            })
-    })
-}
-    */
 
 function getServices(identity) {
+    //TODO: add services list from resources
     return redis.smembers(`idx:services:${identity}`);
 }
 
 async function getEntitlements(member, service) {
+    function enrichEntitlement(ent) {
+        return {
+            ...ent,
+            sourceCount: ent.source.length
+        };
+    }
     const ids = await redis.smembers(`idx:member:${member}:service:${service}`);
     if (ids.length === 0) return [];
     const pipeline = redis.pipeline();
     ids.forEach(id => pipeline.call('JSON.GET', `entitlements:${id}`));
     const results = await pipeline.exec();
-    return results.map(([err, val]) => JSON.parse(val));
+    return results
+        .filter(([err, val]) => !err && val)
+        .map(([, val]) => JSON.parse(val))
+        .map(enrichEntitlement);
 }
 
 /******************************** */
