@@ -4,6 +4,10 @@ const API_BASE = '/api';
 const state = {
   identity: null,
   service: null,
+  identities: [],
+  services: [],
+  identityFilter: '',
+  serviceFilter: '',
 };
 
 const el = {
@@ -16,7 +20,13 @@ const el = {
   emptyIdentities: document.getElementById('empty-identities'),
   emptyServices: document.getElementById('empty-services'),
   emptyEntitlements: document.getElementById('empty-entitlements'),
+  searchIdentities: document.getElementById('search-identities'),
+  searchServices: document.getElementById('search-services'),
 };
+
+function matchesFilter(text, filter) {
+  return filter === '' || text.toLowerCase().includes(filter);
+}
 
 async function fetchJson(url) {
   const res = await fetch(url);
@@ -61,19 +71,36 @@ async function loadIdentities() {
 }
 
 function renderIdentities(identities) {
-  el.bodyIdentities.innerHTML = '';
-  el.countIdentities.textContent = identities.length;
+  state.identities = identities.slice().sort();
+  renderIdentityRows();
+}
 
-  if (identities.length === 0) {
+function renderIdentityRows() {
+  el.bodyIdentities.innerHTML = '';
+
+  if (state.identities.length === 0) {
+    el.countIdentities.textContent = '0';
     el.emptyIdentities.hidden = false;
     el.emptyIdentities.textContent = 'No identities found';
     return;
   }
+
+  const filtered = state.identities.filter((identity) => matchesFilter(identity, state.identityFilter));
+  el.countIdentities.textContent = state.identityFilter
+    ? `${filtered.length} / ${state.identities.length}`
+    : state.identities.length;
+
+  if (filtered.length === 0) {
+    el.emptyIdentities.hidden = false;
+    el.emptyIdentities.textContent = 'No matching identities';
+    return;
+  }
   el.emptyIdentities.hidden = true;
 
-  identities.sort().forEach((identity) => {
+  filtered.forEach((identity) => {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
+    if (identity === state.identity) tr.classList.add('selected');
     tr.dataset.identity = identity;
     tr.innerHTML = `<td>${escapeHtml(identity)}</td>`;
     tr.addEventListener('click', () => selectIdentity(identity, tr));
@@ -93,6 +120,9 @@ function selectIdentity(identity, rowEl) {
   el.emptyEntitlements.hidden = false;
   el.emptyEntitlements.textContent = 'Select a service';
 
+  state.serviceFilter = '';
+  el.searchServices.value = '';
+
   loadServices(identity);
 }
 
@@ -108,19 +138,36 @@ async function loadServices(identity) {
 }
 
 function renderServices(services) {
-  el.bodyServices.innerHTML = '';
-  el.countServices.textContent = services.length;
+  state.services = services.slice().sort();
+  renderServiceRows();
+}
 
-  if (services.length === 0) {
+function renderServiceRows() {
+  el.bodyServices.innerHTML = '';
+
+  if (state.services.length === 0) {
+    el.countServices.textContent = '0';
     el.emptyServices.hidden = false;
     el.emptyServices.textContent = 'No services found';
     return;
   }
+
+  const filtered = state.services.filter((service) => matchesFilter(service, state.serviceFilter));
+  el.countServices.textContent = state.serviceFilter
+    ? `${filtered.length} / ${state.services.length}`
+    : state.services.length;
+
+  if (filtered.length === 0) {
+    el.emptyServices.hidden = false;
+    el.emptyServices.textContent = 'No matching services';
+    return;
+  }
   el.emptyServices.hidden = true;
 
-  services.sort().forEach((service) => {
+  filtered.forEach((service) => {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
+    if (service === state.service) tr.classList.add('selected');
     tr.dataset.service = service;
     tr.innerHTML = `<td>${escapeHtml(service)}</td>`;
     tr.addEventListener('click', () => selectService(service, tr));
@@ -179,5 +226,16 @@ function renderEntitlements(entitlements) {
     el.bodyEntitlements.appendChild(tr);
   });
 }
+
+el.searchIdentities.addEventListener('input', (e) => {
+  state.identityFilter = e.target.value.trim().toLowerCase();
+  renderIdentityRows();
+});
+
+el.searchServices.addEventListener('input', (e) => {
+  if (state.identity === null) return;
+  state.serviceFilter = e.target.value.trim().toLowerCase();
+  renderServiceRows();
+});
 
 loadIdentities();

@@ -85,6 +85,30 @@ main {
   border-radius: 999px;
 }
 
+.panel-search {
+  padding: 0.6rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.panel-search input {
+  width: 100%;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.panel-search input:focus {
+  border-color: var(--selected-border);
+  background: #fff;
+}
+
 .table-scroll {
   max-height: 340px;
   overflow: auto;
