@@ -454,6 +454,11 @@ tbody tr.selected {
   box-shadow: inset 3px 0 0 var(--selected-border);
 }
 
+.service-all-row td {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;

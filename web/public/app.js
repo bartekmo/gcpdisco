@@ -1,6 +1,12 @@
 // Same-origin: the API is served by this app's own server (see server.mjs).
 const API_BASE = '/api';
 
+// Pseudo service pinned at the top of the services list. Selecting it merges
+// entitlements across every real service by calling the existing
+// per-service endpoint once per service and combining the results - no
+// backend change needed since the browser already has the full service list.
+const ALL_SERVICES = '__all__';
+
 const ENTITLEMENT_FILTER_GROUPS = [
   { key: 'attachmentScope', label: 'Attachment scope', values: (ent) => [ent.attachmentScope] },
   { key: 'category', label: 'Category', values: (ent) => [ent.category] },
@@ -172,25 +178,28 @@ function renderServices(services) {
 
 function renderServiceRows() {
   el.bodyServices.innerHTML = '';
+  el.emptyServices.hidden = true;
 
-  if (state.services.length === 0) {
-    el.countServices.textContent = '0';
-    el.emptyServices.hidden = false;
-    el.emptyServices.textContent = 'No services found';
-    return;
-  }
-
-  const filtered = state.services.filter((service) => matchesFilter(service, state.serviceFilter));
   el.countServices.textContent = state.serviceFilter
-    ? `${filtered.length} / ${state.services.length}`
+    ? `${state.services.filter((service) => matchesFilter(service, state.serviceFilter)).length} / ${state.services.length}`
     : state.services.length;
 
+  const allRow = document.createElement('tr');
+  allRow.className = 'clickable service-all-row';
+  if (state.service === ALL_SERVICES) allRow.classList.add('selected');
+  allRow.innerHTML = '<td>ALL SERVICES</td>';
+  allRow.addEventListener('click', () => selectService(ALL_SERVICES, allRow));
+  el.bodyServices.appendChild(allRow);
+
+  if (state.services.length === 0) return;
+
+  const filtered = state.services.filter((service) => matchesFilter(service, state.serviceFilter));
   if (filtered.length === 0) {
-    el.emptyServices.hidden = false;
-    el.emptyServices.textContent = 'No matching services';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="filter-empty">No matching services</td>';
+    el.bodyServices.appendChild(tr);
     return;
   }
-  el.emptyServices.hidden = true;
 
   filtered.forEach((service) => {
     const tr = document.createElement('tr');
@@ -217,13 +226,22 @@ async function loadEntitlements(identity, service) {
   setLoading(el.bodyEntitlements, el.emptyEntitlements);
   el.countEntitlements.textContent = '';
   try {
-    const entitlements = await fetchJson(
-      `${API_BASE}/entitlements/${encodeURIComponent(identity)}/${encodeURIComponent(service)}`
-    );
+    const entitlements = service === ALL_SERVICES
+      ? await loadAllEntitlements(identity)
+      : await fetchJson(`${API_BASE}/entitlements/${encodeURIComponent(identity)}/${encodeURIComponent(service)}`);
     renderEntitlements(entitlements);
   } catch (err) {
     setError(el.bodyEntitlements, el.emptyEntitlements, err.message);
   }
+}
+
+async function loadAllEntitlements(identity) {
+  const perService = await Promise.all(
+    state.services.map((service) =>
+      fetchJson(`${API_BASE}/entitlements/${encodeURIComponent(identity)}/${encodeURIComponent(service)}`)
+    )
+  );
+  return perService.flat();
 }
 
 function renderEntitlements(entitlements) {
