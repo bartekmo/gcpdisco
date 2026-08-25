@@ -1,5 +1,5 @@
-// Point this at wherever the backend API server (app/index.mjs) is running.
-const API_BASE = 'http://localhost:3000/api';
+// Same-origin: the API is served by this app's own server (see server.mjs).
+const API_BASE = '/api';
 
 const state = {
   identity: null,
