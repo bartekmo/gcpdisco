@@ -12,6 +12,7 @@
   <p class="subtitle">Identities &rarr; services &rarr; entitlements</p>
 </header>
 
+<div class="app-layout">
 <main>
   <section class="table-row">
     <div class="panel" id="panel-identities">
@@ -94,6 +95,15 @@
     </div>
   </section>
 </main>
+
+<aside class="panel policy-panel" id="policy-panel" hidden>
+  <div class="panel-header">
+    <h2>Policy binding details</h2>
+    <button type="button" class="icon-btn" id="policy-panel-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="policy-panel-body" id="policy-panel-body"></div>
+</aside>
+</div>
 
 <script src="app.js"></script>
 </body>

@@ -22,6 +22,8 @@ const state = {
   identityFilter: '',
   serviceFilter: '',
   entFilters: createEmptyEntFilters(),
+  roleCache: new Map(),
+  activeRoleButton: null,
 };
 
 const el = {
@@ -42,6 +44,9 @@ const el = {
   filterGroups: document.getElementById('filter-groups'),
   filterBadge: document.getElementById('filter-badge'),
   filterClear: document.getElementById('filter-clear'),
+  policyPanel: document.getElementById('policy-panel'),
+  policyPanelBody: document.getElementById('policy-panel-body'),
+  policyPanelClose: document.getElementById('policy-panel-close'),
 };
 
 function matchesFilter(text, filter) {
@@ -142,6 +147,7 @@ function selectIdentity(identity, rowEl) {
 
   state.serviceFilter = '';
   el.searchServices.value = '';
+  closePolicyPanel();
 
   loadServices(identity);
 }
@@ -200,6 +206,7 @@ function selectService(service, rowEl) {
 
   [...el.bodyServices.children].forEach((row) => row.classList.remove('selected'));
   rowEl.classList.add('selected');
+  closePolicyPanel();
 
   loadEntitlements(state.identity, service);
 }
@@ -257,11 +264,6 @@ function renderEntitlementRows() {
   el.emptyEntitlements.hidden = true;
 
   filtered.forEach((ent) => {
-    const roles = (ent.source || []).map((s) => s.role).filter(Boolean);
-    const rolesHtml = roles.length
-      ? `<div class="roles">${roles.map((r) => `<span class="role-chip">${escapeHtml(r)}</span>`).join('')}</div>`
-      : '';
-
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(ent.permission)}</td>
@@ -269,8 +271,26 @@ function renderEntitlementRows() {
       <td>${categoryBadge(ent.category)}</td>
       <td>${escapeHtml(ent.attachmentScope)}</td>
       <td>${escapeHtml(ent.sourceCount)}</td>
-      <td>${rolesHtml}</td>
+      <td></td>
     `;
+
+    const sources = ent.source || [];
+    if (sources.length) {
+      const rolesCell = tr.lastElementChild;
+      const rolesContainer = document.createElement('div');
+      rolesContainer.className = 'roles';
+      sources.forEach((source) => {
+        if (!source.role) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'role-chip role-chip-btn';
+        btn.textContent = source.role;
+        btn.addEventListener('click', () => openPolicyBindingDetails(ent, source, btn));
+        rolesContainer.appendChild(btn);
+      });
+      rolesCell.appendChild(rolesContainer);
+    }
+
     el.bodyEntitlements.appendChild(tr);
   });
 }
@@ -333,6 +353,82 @@ function updateFilterBadge() {
 function closeFilterPopover() {
   el.filterPopover.hidden = true;
   el.filterBtn.setAttribute('aria-expanded', 'false');
+}
+
+async function loadRole(roleName) {
+  if (state.roleCache.has(roleName)) {
+    return state.roleCache.get(roleName);
+  }
+  const promise = fetchJson(`${API_BASE}/roles/${encodeURIComponent(roleName)}`);
+  state.roleCache.set(roleName, promise);
+  try {
+    return await promise;
+  } catch (err) {
+    state.roleCache.delete(roleName);
+    throw err;
+  }
+}
+
+function closePolicyPanel() {
+  el.policyPanel.hidden = true;
+  if (state.activeRoleButton) {
+    state.activeRoleButton.classList.remove('selected');
+    state.activeRoleButton = null;
+  }
+}
+
+function openPolicyBindingDetails(ent, source, btn) {
+  if (state.activeRoleButton) state.activeRoleButton.classList.remove('selected');
+  state.activeRoleButton = btn;
+  btn.classList.add('selected');
+
+  el.policyPanel.hidden = false;
+  el.policyPanelBody.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading&hellip;</div>';
+
+  const assignment = source.type === 'direct' ? 'directly assigned' : 'inherited';
+
+  loadRole(source.role)
+    .then((role) => {
+      const permissionsHtml = (role.includedPermissions || [])
+        .map((p) => `<li>${escapeHtml(p)}</li>`)
+        .join('');
+
+      el.policyPanelBody.innerHTML = `
+        <div class="policy-section">
+          <p class="policy-section-title">Binding</p>
+          <dl>
+            <div class="policy-row"><dt>Role</dt><dd>${escapeHtml(source.role)}</dd></div>
+            <div class="policy-row"><dt>Attachment point</dt><dd>${escapeHtml(source.attachmentPoint)}</dd></div>
+            <div class="policy-row"><dt>Assignment</dt><dd><span class="badge ${source.type === 'direct' ? 'badge-direct' : 'badge-inherited'}">${escapeHtml(assignment)}</span></dd></div>
+          </dl>
+        </div>
+        <div class="policy-section">
+          <p class="policy-section-title">Role details</p>
+          <dl>
+            <div class="policy-row"><dt>Title</dt><dd>${escapeHtml(role.title)}</dd></div>
+            <div class="policy-row"><dt>Description</dt><dd>${escapeHtml(role.description)}</dd></div>
+            <div class="policy-row"><dt>Stage</dt><dd>${escapeHtml(role.stage)}</dd></div>
+          </dl>
+        </div>
+        <div class="policy-section">
+          <p class="policy-section-title">Permissions</p>
+          <ul class="permissions-list">${permissionsHtml}</ul>
+        </div>
+      `;
+    })
+    .catch((err) => {
+      el.policyPanelBody.innerHTML = `
+        <div class="policy-section">
+          <p class="policy-section-title">Binding</p>
+          <dl>
+            <div class="policy-row"><dt>Role</dt><dd>${escapeHtml(source.role)}</dd></div>
+            <div class="policy-row"><dt>Attachment point</dt><dd>${escapeHtml(source.attachmentPoint)}</dd></div>
+            <div class="policy-row"><dt>Assignment</dt><dd><span class="badge ${source.type === 'direct' ? 'badge-direct' : 'badge-inherited'}">${escapeHtml(assignment)}</span></dd></div>
+          </dl>
+        </div>
+        <div class="error-state">Could not load role details: ${escapeHtml(err.message)}</div>
+      `;
+    });
 }
 
 function initColumnResize(table) {
@@ -408,6 +504,8 @@ el.filterClear.addEventListener('click', () => {
   updateFilterBadge();
   renderEntitlementRows();
 });
+
+el.policyPanelClose.addEventListener('click', closePolicyPanel);
 
 buildFilterGroups();
 updateFilterBadge();

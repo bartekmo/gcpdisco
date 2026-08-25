@@ -39,6 +39,11 @@ async function getEntitlements(member, service) {
         .map(enrichEntitlement);
 }
 
+async function getRole(roleName) {
+    const raw = await redis.call('JSON.GET', `roles:${roleName}`);
+    return raw ? JSON.parse(raw) : null;
+}
+
 const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -62,6 +67,19 @@ app.get('/api/services/:identity', async (req, res) => {
 app.get('/api/entitlements/:identity/:service', async (req, res) => {
     try {
         res.json(await getEntitlements(req.params.identity, req.params.service));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/roles/:role', async (req, res) => {
+    try {
+        const role = await getRole(req.params.role);
+        if (!role) {
+            res.status(404).json({ error: 'Role not found' });
+            return;
+        }
+        res.json(role);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

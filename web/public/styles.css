@@ -36,12 +36,120 @@ h1 {
   font-size: 0.9rem;
 }
 
+.app-layout {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1500px;
+}
+
 main {
+  flex: 2 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 1200px;
 }
+
+.policy-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.policy-panel[hidden] {
+  display: none;
+}
+
+.policy-panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem 1.1rem;
+  font-size: 0.88rem;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.policy-section {
+  margin-bottom: 1.25rem;
+}
+
+.policy-section:last-child {
+  margin-bottom: 0;
+}
+
+.policy-section-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.policy-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.policy-row:last-child {
+  border-bottom: none;
+}
+
+.policy-row dt {
+  flex: 0 0 8.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.policy-row dd {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.permissions-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.permissions-list li {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  background: var(--hover);
+  border-radius: 5px;
+  padding: 0.25rem 0.5rem;
+}
+
+.badge-inherited { background: #f1f5f9; color: #334155; }
+.badge-direct { background: #dcfce7; color: #166534; }
 
 .table-row {
   display: flex;
@@ -154,6 +262,10 @@ main {
   color: #fff;
   font-size: 0.7rem;
   font-weight: 600;
+}
+
+.filter-badge[hidden] {
+  display: none;
 }
 
 .filter-popover {
@@ -361,6 +473,24 @@ tbody tr.selected {
   border: 1px solid var(--border);
   font-size: 0.78rem;
   white-space: nowrap;
+}
+
+.role-chip-btn {
+  font-family: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.role-chip-btn:hover {
+  background: var(--selected);
+  border-color: var(--selected-border);
+}
+
+.role-chip-btn.selected {
+  background: var(--selected);
+  border-color: var(--selected-border);
+  color: var(--accent);
 }
 
 .empty-state {
