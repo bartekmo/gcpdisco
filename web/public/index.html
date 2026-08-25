@@ -56,19 +56,35 @@
   <section class="table-row">
     <div class="panel panel-wide" id="panel-entitlements">
       <div class="panel-header">
-        <h2>Entitlements</h2>
+        <div class="panel-header-left">
+          <h2>Entitlements</h2>
+          <div class="filter-wrap">
+            <button type="button" class="filter-btn" id="filter-btn" aria-haspopup="true" aria-expanded="false" title="Filter entitlements">
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 2h14l-5.2 6.2v4.3l-3.6 1.8V8.2z" fill="currentColor"/></svg>
+              Filter
+              <span class="filter-badge" id="filter-badge" hidden>0</span>
+            </button>
+            <div class="filter-popover" id="filter-popover" hidden>
+              <div class="filter-popover-header">
+                <span>Filters</span>
+                <button type="button" class="link-btn" id="filter-clear">Clear all</button>
+              </div>
+              <div class="filter-groups" id="filter-groups"></div>
+            </div>
+          </div>
+        </div>
         <span class="count" id="count-entitlements"></span>
       </div>
       <div class="table-scroll">
-        <table>
+        <table class="resizable" id="table-entitlements">
           <thead>
             <tr>
-              <th>Permission</th>
-              <th>Resource</th>
-              <th>Category</th>
-              <th>Attachment scope</th>
-              <th>Sources</th>
-              <th>Source roles</th>
+              <th data-col="permission">Permission</th>
+              <th data-col="resourceDisplayName">Resource</th>
+              <th data-col="category">Category</th>
+              <th data-col="attachmentScope">Attachment scope</th>
+              <th data-col="sourceCount">Sources</th>
+              <th data-col="roles">Source roles</th>
             </tr>
           </thead>
           <tbody id="body-entitlements"></tbody>

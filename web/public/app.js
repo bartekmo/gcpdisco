@@ -1,13 +1,27 @@
 // Same-origin: the API is served by this app's own server (see server.mjs).
 const API_BASE = '/api';
 
+const ENTITLEMENT_FILTER_GROUPS = [
+  { key: 'attachmentScope', label: 'Attachment scope', values: (ent) => [ent.attachmentScope] },
+  { key: 'category', label: 'Category', values: (ent) => [ent.category] },
+  { key: 'role', label: 'Roles', values: (ent) => (ent.source || []).map((s) => s.role).filter(Boolean) },
+];
+
+function createEmptyEntFilters() {
+  const filters = {};
+  ENTITLEMENT_FILTER_GROUPS.forEach((group) => { filters[group.key] = new Set(); });
+  return filters;
+}
+
 const state = {
   identity: null,
   service: null,
   identities: [],
   services: [],
+  entitlements: [],
   identityFilter: '',
   serviceFilter: '',
+  entFilters: createEmptyEntFilters(),
 };
 
 const el = {
@@ -22,6 +36,12 @@ const el = {
   emptyEntitlements: document.getElementById('empty-entitlements'),
   searchIdentities: document.getElementById('search-identities'),
   searchServices: document.getElementById('search-services'),
+  tableEntitlements: document.getElementById('table-entitlements'),
+  filterBtn: document.getElementById('filter-btn'),
+  filterPopover: document.getElementById('filter-popover'),
+  filterGroups: document.getElementById('filter-groups'),
+  filterBadge: document.getElementById('filter-badge'),
+  filterClear: document.getElementById('filter-clear'),
 };
 
 function matchesFilter(text, filter) {
@@ -198,17 +218,45 @@ async function loadEntitlements(identity, service) {
 }
 
 function renderEntitlements(entitlements) {
-  el.bodyEntitlements.innerHTML = '';
-  el.countEntitlements.textContent = entitlements.length;
+  state.entitlements = entitlements;
+  state.entFilters = createEmptyEntFilters();
+  buildFilterGroups();
+  updateFilterBadge();
+  renderEntitlementRows();
+}
 
-  if (entitlements.length === 0) {
+function entitlementMatchesFilters(ent) {
+  return ENTITLEMENT_FILTER_GROUPS.every((group) => {
+    const selected = state.entFilters[group.key];
+    if (selected.size === 0) return true;
+    return group.values(ent).some((v) => selected.has(v));
+  });
+}
+
+function renderEntitlementRows() {
+  el.bodyEntitlements.innerHTML = '';
+
+  if (state.entitlements.length === 0) {
+    el.countEntitlements.textContent = '0';
     el.emptyEntitlements.hidden = false;
     el.emptyEntitlements.textContent = 'No entitlements found';
     return;
   }
+
+  const filtered = state.entitlements.filter(entitlementMatchesFilters);
+  const filterActive = ENTITLEMENT_FILTER_GROUPS.some((group) => state.entFilters[group.key].size > 0);
+  el.countEntitlements.textContent = filterActive
+    ? `${filtered.length} / ${state.entitlements.length}`
+    : state.entitlements.length;
+
+  if (filtered.length === 0) {
+    el.emptyEntitlements.hidden = false;
+    el.emptyEntitlements.textContent = 'No matching entitlements';
+    return;
+  }
   el.emptyEntitlements.hidden = true;
 
-  entitlements.forEach((ent) => {
+  filtered.forEach((ent) => {
     const roles = (ent.source || []).map((s) => s.role).filter(Boolean);
     const rolesHtml = roles.length
       ? `<div class="roles">${roles.map((r) => `<span class="role-chip">${escapeHtml(r)}</span>`).join('')}</div>`
@@ -227,6 +275,101 @@ function renderEntitlements(entitlements) {
   });
 }
 
+function buildFilterGroups() {
+  el.filterGroups.innerHTML = '';
+
+  ENTITLEMENT_FILTER_GROUPS.forEach((group) => {
+    const values = new Set();
+    state.entitlements.forEach((ent) => group.values(ent).forEach((v) => v && values.add(v)));
+    const sorted = [...values].sort();
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'filter-group';
+
+    const title = document.createElement('p');
+    title.className = 'filter-group-title';
+    title.textContent = group.label;
+    groupEl.appendChild(title);
+
+    if (sorted.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'filter-empty';
+      empty.textContent = 'No values';
+      groupEl.appendChild(empty);
+    } else {
+      sorted.forEach((value) => {
+        const label = document.createElement('label');
+        label.className = 'filter-option';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = state.entFilters[group.key].has(value);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            state.entFilters[group.key].add(value);
+          } else {
+            state.entFilters[group.key].delete(value);
+          }
+          updateFilterBadge();
+          renderEntitlementRows();
+        });
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(value));
+        groupEl.appendChild(label);
+      });
+    }
+
+    el.filterGroups.appendChild(groupEl);
+  });
+}
+
+function updateFilterBadge() {
+  const count = ENTITLEMENT_FILTER_GROUPS.reduce((sum, group) => sum + state.entFilters[group.key].size, 0);
+  el.filterBadge.hidden = count === 0;
+  el.filterBadge.textContent = count;
+}
+
+function closeFilterPopover() {
+  el.filterPopover.hidden = true;
+  el.filterBtn.setAttribute('aria-expanded', 'false');
+}
+
+function initColumnResize(table) {
+  const headerCells = [...table.tHead.rows[0].cells];
+  headerCells.forEach((th) => {
+    th.style.width = `${th.offsetWidth}px`;
+  });
+  table.classList.add('resizable');
+
+  headerCells.forEach((th) => {
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    th.appendChild(handle);
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = th.offsetWidth;
+      handle.classList.add('resizing');
+      document.body.classList.add('col-resizing');
+
+      function onMouseMove(ev) {
+        th.style.width = `${Math.max(60, startWidth + (ev.clientX - startX))}px`;
+      }
+      function onMouseUp() {
+        handle.classList.remove('resizing');
+        document.body.classList.remove('col-resizing');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
 el.searchIdentities.addEventListener('input', (e) => {
   state.identityFilter = e.target.value.trim().toLowerCase();
   renderIdentityRows();
@@ -237,5 +380,37 @@ el.searchServices.addEventListener('input', (e) => {
   state.serviceFilter = e.target.value.trim().toLowerCase();
   renderServiceRows();
 });
+
+el.filterBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = !el.filterPopover.hidden;
+  if (isOpen) {
+    closeFilterPopover();
+  } else {
+    el.filterPopover.hidden = false;
+    el.filterBtn.setAttribute('aria-expanded', 'true');
+  }
+});
+
+el.filterPopover.addEventListener('click', (e) => e.stopPropagation());
+
+document.addEventListener('click', () => {
+  if (!el.filterPopover.hidden) closeFilterPopover();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !el.filterPopover.hidden) closeFilterPopover();
+});
+
+el.filterClear.addEventListener('click', () => {
+  state.entFilters = createEmptyEntFilters();
+  buildFilterGroups();
+  updateFilterBadge();
+  renderEntitlementRows();
+});
+
+buildFilterGroups();
+updateFilterBadge();
+initColumnResize(el.tableEntitlements);
 
 loadIdentities();

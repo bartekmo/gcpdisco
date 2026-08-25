@@ -69,6 +69,13 @@ main {
   justify-content: space-between;
   padding: 0.85rem 1.1rem;
   border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .panel-header h2 {
@@ -109,6 +116,129 @@ main {
   background: #fff;
 }
 
+.filter-wrap {
+  position: relative;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.filter-btn:hover,
+.filter-btn[aria-expanded="true"] {
+  background: var(--selected);
+  color: var(--accent);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.filter-popover {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 10;
+  width: 320px;
+  max-height: 380px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.filter-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: #fff;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.filter-groups {
+  padding: 0.5rem 0.9rem 0.9rem;
+}
+
+.filter-group {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-group:last-child {
+  border-bottom: none;
+}
+
+.filter-group-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.filter-option input {
+  cursor: pointer;
+}
+
+.filter-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 0.5rem 0;
+}
+
 .table-scroll {
   max-height: 340px;
   overflow: auto;
@@ -119,6 +249,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+table.resizable {
+  table-layout: fixed;
 }
 
 thead th {
@@ -134,6 +268,44 @@ thead th {
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--border);
   z-index: 1;
+}
+
+.resizable thead th {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.col-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  right: 2px;
+  width: 2px;
+  background: var(--border);
+}
+
+.col-resize-handle:hover::after,
+.col-resize-handle.resizing::after {
+  background: var(--selected-border);
+}
+
+body.col-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 tbody td {
