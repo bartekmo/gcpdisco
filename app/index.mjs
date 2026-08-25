@@ -1,6 +1,8 @@
 import { google } from 'googleapis';
 import { v1, v1p1beta1 } from '@google-cloud/asset';
 import Redis from 'ioredis';
+import express from 'express';
+import cors from 'cors';
 
 const assetClientv1 = new v1.AssetServiceClient();
 //const assetClientv1p1beta1 = new v1p1beta1.AssetServiceClient();
@@ -301,6 +303,39 @@ async function getEntitlements(member, service) {
 
 /******************************** */
 
+// REST API
+
+const app = express();
+app.use(cors());
+
+app.get('/api/identities', async (req, res) => {
+    try {
+        res.json(await getIdentities());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/services/:identity', async (req, res) => {
+    try {
+        res.json(await getServices(req.params.identity));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/entitlements/:identity/:service', async (req, res) => {
+    try {
+        res.json(await getEntitlements(req.params.identity, req.params.service));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+
+/******************************** */
+
 
 const loadResourcesPromise = loadResources('projects/security-demo-40net')
     .then((resourcesFromApi) => {
@@ -339,6 +374,10 @@ Promise.all([loadResourcesPromise, loadRolesPromise, loadPoliciesPromise])
             .then((res) => {
                 console.log(res);
             })
+
+        app.listen(PORT, () => {
+            console.log(`API server listening on port ${PORT}`);
+        });
     });
 
 

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCP Discovery</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>GCP Discovery</h1>
+  <p class="subtitle">Identities &rarr; services &rarr; entitlements</p>
+</header>
+
+<main>
+  <section class="table-row">
+    <div class="panel" id="panel-identities">
+      <div class="panel-header">
+        <h2>Identities</h2>
+        <span class="count" id="count-identities"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Identity</th></tr>
+          </thead>
+          <tbody id="body-identities"></tbody>
+        </table>
+        <div class="empty-state" id="empty-identities" hidden>No identities found</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-services">
+      <div class="panel-header">
+        <h2>Services</h2>
+        <span class="count" id="count-services"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Service</th></tr>
+          </thead>
+          <tbody id="body-services"></tbody>
+        </table>
+        <div class="empty-state" id="empty-services">Select an identity</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="table-row">
+    <div class="panel panel-wide" id="panel-entitlements">
+      <div class="panel-header">
+        <h2>Entitlements</h2>
+        <span class="count" id="count-entitlements"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Permission</th>
+              <th>Resource</th>
+              <th>Category</th>
+              <th>Attachment scope</th>
+              <th>Sources</th>
+              <th>Source roles</th>
+            </tr>
+          </thead>
+          <tbody id="body-entitlements"></tbody>
+        </table>
+        <div class="empty-state" id="empty-entitlements">Select a service</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
