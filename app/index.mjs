@@ -207,6 +207,21 @@ function policiesToEntitlements(policies, roles) {
         return permission.split('.')[0];
     }
 
+    function isOrgUnit(fullResourceName) {
+        const orgUnits = [
+            '//cloudresourcemanager.googleapis.com/projects',
+            '//cloudresourcemanager.googleapis.com/folders',
+            '//cloudresourcemanager.googleapis.com/organizations'
+        ];
+        return orgUnits.includes(fullResourceName.split('/').slice(0, -1).join('/'));
+    }
+
+    function matchesApi(permission, fullResourceName) {
+        const typeFromPermission = `//${permission.split('.')[1]}.googleapis.com/${permission.split('.')[1]}`;
+        const typeFromResource = `//${fullResourceName.split('/')[2]}/${fullResourceName.split('/').at(-2)}`;
+        return (typeFromPermission == typeFromResource);
+    }
+
     const pipeEntitlements = redis.pipeline();
     let entitlements = {};
     for (const policy of policies) {
@@ -216,6 +231,8 @@ function policiesToEntitlements(policies, roles) {
                 for (const permission of role.includedPermissions) {
                     const service = serviceFromPermission(permission);
                     const entitlementId = `${permission}:${member}:${policy.resource}`;
+
+
                     if (!entitlements[entitlementId]) {
                         entitlements[entitlementId] = {
                             permission: permission,
@@ -226,14 +243,17 @@ function policiesToEntitlements(policies, roles) {
                             category: readPermissionCategory(permission),
                             attachmentScope: policy.resource.match(/\/\/cloudresourcemanager\.googleapis\.com\/projects\/.*/) ? 'project' : 'resource', //enum(org, folder, project, resource, multiple);
                             source: [{
-                                type: 'direct', //enum('direct', 'linked')
+                                type: 'direct', //TODO: enum('direct', 'linked', 'inherited')
                                 role: binding.role,
                                 attachmentPoint: policy.resource
                             }]
                         }
+                        if (isOrgUnit(policy.resource) && (!matchesApi(permission, policy.resource))) {
+                            entitlements[entitlementId].resourceDisplayName += "/*";
+                        }
                     } else {
                         entitlements[entitlementId].source.push({
-                            type: '',
+                            type: 'direct',
                             role: binding.role,
                             attachmentPoint: policy.resource
                         })
@@ -264,7 +284,11 @@ function normalizeService(serviceName) {
 }
 
 function normalizeResourceName(resourceName) {
-    return resourceName;
+    const splitName = resourceName.split('/');
+    if (splitName[splitName.length - 2] == 'serviceAccounts') {
+        return splitName[splitName.length - 1];
+    }
+    return trimApiFromResourceName(resourceName) ?? resourceName;
 }
 
 /************************************/
@@ -300,23 +324,24 @@ async function getEntitlements(member, service) {
 }
 
 /******************************** */
+//const searchBase = 'organizations/81969898909'; 
+const searchBase = 'projects/security-demo-40net'
 
-
-const loadResourcesPromise = loadResources('projects/security-demo-40net')
+const loadResourcesPromise = loadResources(searchBase)
     .then((resourcesFromApi) => {
         console.log(`Collected ${resourcesFromApi.length} resources from @google-cloud/asset.v1.AssetServiceClient().listAssets()`);
         return resourcesFromApi;
     })
 
 
-const loadRolesPromise = loadRoles('projects/security-demo-40net')
+const loadRolesPromise = loadRoles(searchBase)
     .then((rolesAll) => {
         console.log(`Collected ${Object.keys(rolesAll).length} roles from googleapis.iam.roles.list()`);
         return rolesAll;
     })
 
 
-const loadPoliciesPromise = loadPolicies('projects/security-demo-40net')
+const loadPoliciesPromise = loadPolicies(searchBase)
     .then((policiesFromApi) => {
         console.log(`Collected ${policiesFromApi.length} policies from @google-cloud/asset.v1.AssetServiceClient().searchAllIamPolicies()`);
         return policiesFromApi;
@@ -331,14 +356,18 @@ Promise.all([loadResourcesPromise, loadRolesPromise, loadPoliciesPromise])
         console.log(` - ${Object.keys(roles).length} roles`);
 
         await policiesToEntitlements(policiesFromApi, roles);
+
+        /*
         const identities = await getIdentities()
         //console.log(identities);
         const services = await getServices('user:bamo@gcp.40net.cloud');
         //console.log(services);
         getEntitlements('user:bamo@gcp.40net.cloud', 'iam')
             .then((res) => {
-                console.log(res);
+                //console.log(res);
+                return 1;
             })
+                */
     });
 
 
