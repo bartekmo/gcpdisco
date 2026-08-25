@@ -99,12 +99,23 @@ main {
 }
 
 .policy-section-title {
-  margin: 0 0 0.6rem;
+  margin: 0;
+  padding: 0.15rem 0;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.policy-section-title:hover {
+  color: var(--text);
+}
+
+.policy-section > summary + * {
+  margin-top: 0.6rem;
 }
 
 .policy-row {
@@ -131,16 +142,20 @@ main {
   word-break: break-word;
 }
 
-.permissions-list {
+.permissions-list,
+.members-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  max-height: 220px;
+  overflow-y: auto;
 }
 
-.permissions-list li {
+.permissions-list li,
+.members-list li {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;
   background: var(--hover);

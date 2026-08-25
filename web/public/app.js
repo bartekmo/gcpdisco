@@ -23,7 +23,9 @@ const state = {
   serviceFilter: '',
   entFilters: createEmptyEntFilters(),
   roleCache: new Map(),
+  membersCache: new Map(),
   activeRoleButton: null,
+  policyRequestId: 0,
 };
 
 const el = {
@@ -369,6 +371,23 @@ async function loadRole(roleName) {
   }
 }
 
+async function loadPolicyMembers(attachmentPoint, role) {
+  const cacheKey = `${attachmentPoint}::${role}`;
+  if (state.membersCache.has(cacheKey)) {
+    return state.membersCache.get(cacheKey);
+  }
+  const promise = fetchJson(
+    `${API_BASE}/policy-members?attachmentPoint=${encodeURIComponent(attachmentPoint)}&role=${encodeURIComponent(role)}`
+  );
+  state.membersCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (err) {
+    state.membersCache.delete(cacheKey);
+    throw err;
+  }
+}
+
 function closePolicyPanel() {
   el.policyPanel.hidden = true;
   if (state.activeRoleButton) {
@@ -382,52 +401,75 @@ function openPolicyBindingDetails(ent, source, btn) {
   state.activeRoleButton = btn;
   btn.classList.add('selected');
 
+  const requestId = ++state.policyRequestId;
+  const isCurrent = () => state.policyRequestId === requestId;
+
   el.policyPanel.hidden = false;
-  el.policyPanelBody.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading&hellip;</div>';
 
   const assignment = source.type === 'direct' ? 'directly assigned' : 'inherited';
+  const assignmentClass = source.type === 'direct' ? 'badge-direct' : 'badge-inherited';
+  const loadingHtml = '<div class="empty-state"><span class="spinner"></span>Loading&hellip;</div>';
+
+  el.policyPanelBody.innerHTML = `
+    <details class="policy-section" open>
+      <summary class="policy-section-title">Binding</summary>
+      <dl>
+        <div class="policy-row"><dt>Role</dt><dd>${escapeHtml(source.role)}</dd></div>
+        <div class="policy-row"><dt>Attachment point</dt><dd>${escapeHtml(source.attachmentPoint)}</dd></div>
+        <div class="policy-row"><dt>Assignment</dt><dd><span class="badge ${assignmentClass}">${escapeHtml(assignment)}</span></dd></div>
+      </dl>
+    </details>
+    <details class="policy-section">
+      <summary class="policy-section-title" id="policy-role-title">Role details</summary>
+      <div id="policy-role-body">${loadingHtml}</div>
+    </details>
+    <details class="policy-section" open>
+      <summary class="policy-section-title" id="policy-permissions-title">Permissions</summary>
+      <div id="policy-permissions-body">${loadingHtml}</div>
+    </details>
+    <details class="policy-section" open>
+      <summary class="policy-section-title" id="policy-assignments-title">Assignments</summary>
+      <div id="policy-assignments-body">${loadingHtml}</div>
+    </details>
+  `;
 
   loadRole(source.role)
     .then((role) => {
-      const permissionsHtml = (role.includedPermissions || [])
-        .map((p) => `<li>${escapeHtml(p)}</li>`)
-        .join('');
-
-      el.policyPanelBody.innerHTML = `
-        <div class="policy-section">
-          <p class="policy-section-title">Binding</p>
-          <dl>
-            <div class="policy-row"><dt>Role</dt><dd>${escapeHtml(source.role)}</dd></div>
-            <div class="policy-row"><dt>Attachment point</dt><dd>${escapeHtml(source.attachmentPoint)}</dd></div>
-            <div class="policy-row"><dt>Assignment</dt><dd><span class="badge ${source.type === 'direct' ? 'badge-direct' : 'badge-inherited'}">${escapeHtml(assignment)}</span></dd></div>
-          </dl>
-        </div>
-        <div class="policy-section">
-          <p class="policy-section-title">Role details</p>
-          <dl>
-            <div class="policy-row"><dt>Title</dt><dd>${escapeHtml(role.title)}</dd></div>
-            <div class="policy-row"><dt>Description</dt><dd>${escapeHtml(role.description)}</dd></div>
-            <div class="policy-row"><dt>Stage</dt><dd>${escapeHtml(role.stage)}</dd></div>
-          </dl>
-        </div>
-        <div class="policy-section">
-          <p class="policy-section-title">Permissions</p>
-          <ul class="permissions-list">${permissionsHtml}</ul>
-        </div>
+      if (!isCurrent()) return;
+      document.getElementById('policy-role-title').textContent = 'Role details';
+      document.getElementById('policy-role-body').innerHTML = `
+        <dl>
+          <div class="policy-row"><dt>Title</dt><dd>${escapeHtml(role.title)}</dd></div>
+          <div class="policy-row"><dt>Description</dt><dd>${escapeHtml(role.description)}</dd></div>
+          <div class="policy-row"><dt>Stage</dt><dd>${escapeHtml(role.stage)}</dd></div>
+        </dl>
       `;
+
+      const permissions = role.includedPermissions || [];
+      document.getElementById('policy-permissions-title').textContent = `Permissions (${permissions.length})`;
+      document.getElementById('policy-permissions-body').innerHTML = permissions.length
+        ? `<ul class="permissions-list">${permissions.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
+        : '<div class="filter-empty">No permissions found</div>';
     })
     .catch((err) => {
-      el.policyPanelBody.innerHTML = `
-        <div class="policy-section">
-          <p class="policy-section-title">Binding</p>
-          <dl>
-            <div class="policy-row"><dt>Role</dt><dd>${escapeHtml(source.role)}</dd></div>
-            <div class="policy-row"><dt>Attachment point</dt><dd>${escapeHtml(source.attachmentPoint)}</dd></div>
-            <div class="policy-row"><dt>Assignment</dt><dd><span class="badge ${source.type === 'direct' ? 'badge-direct' : 'badge-inherited'}">${escapeHtml(assignment)}</span></dd></div>
-          </dl>
-        </div>
-        <div class="error-state">Could not load role details: ${escapeHtml(err.message)}</div>
-      `;
+      if (!isCurrent()) return;
+      const message = `<div class="error-state">Could not load role details: ${escapeHtml(err.message)}</div>`;
+      document.getElementById('policy-role-body').innerHTML = message;
+      document.getElementById('policy-permissions-body').innerHTML = message;
+    });
+
+  loadPolicyMembers(source.attachmentPoint, source.role)
+    .then((members) => {
+      if (!isCurrent()) return;
+      document.getElementById('policy-assignments-title').textContent = `Assignments (${members.length})`;
+      document.getElementById('policy-assignments-body').innerHTML = members.length
+        ? `<ul class="members-list">${members.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
+        : '<div class="filter-empty">No members found</div>';
+    })
+    .catch((err) => {
+      if (!isCurrent()) return;
+      document.getElementById('policy-assignments-body').innerHTML =
+        `<div class="error-state">Could not load assignments: ${escapeHtml(err.message)}</div>`;
     });
 }
 

@@ -44,6 +44,22 @@ async function getRole(roleName) {
     return raw ? JSON.parse(raw) : null;
 }
 
+async function getPolicyMembers(attachmentPoint, role) {
+    // Only the bindings array is fetched from Redis via a JSONPath; matching
+    // the role and collecting members is done here since it needs branching
+    // logic RedisJSON's path syntax alone can't express.
+    const raw = await redis.call('JSON.GET', `policiesRaw:${attachmentPoint}`, '$.policy.bindings');
+    if (!raw) return [];
+    const [bindings] = JSON.parse(raw);
+    const members = new Set();
+    (bindings || []).forEach((binding) => {
+        if (binding.role === role) {
+            (binding.members || []).forEach((member) => members.add(member));
+        }
+    });
+    return [...members];
+}
+
 const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -80,6 +96,19 @@ app.get('/api/roles/:role', async (req, res) => {
             return;
         }
         res.json(role);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/policy-members', async (req, res) => {
+    const { attachmentPoint, role } = req.query;
+    if (!attachmentPoint || !role) {
+        res.status(400).json({ error: 'attachmentPoint and role query params are required' });
+        return;
+    }
+    try {
+        res.json(await getPolicyMembers(attachmentPoint, role));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
