@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCP Discovery</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>GCP Discovery</h1>
+  <p class="subtitle">Identities &rarr; services &rarr; entitlements</p>
+</header>
+
+<div class="app-layout">
+<main>
+  <section class="table-row">
+    <div class="panel" id="panel-identities">
+      <div class="panel-header">
+        <h2>Identities</h2>
+        <span class="count" id="count-identities"></span>
+      </div>
+      <div class="panel-search">
+        <input type="text" id="search-identities" placeholder="Filter identities&hellip;" autocomplete="off">
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Identity</th></tr>
+          </thead>
+          <tbody id="body-identities"></tbody>
+        </table>
+        <div class="empty-state" id="empty-identities" hidden>No identities found</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-services">
+      <div class="panel-header">
+        <h2>Services</h2>
+        <span class="count" id="count-services"></span>
+      </div>
+      <div class="panel-search">
+        <input type="text" id="search-services" placeholder="Filter services&hellip;" autocomplete="off">
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Service</th></tr>
+          </thead>
+          <tbody id="body-services"></tbody>
+        </table>
+        <div class="empty-state" id="empty-services">Select an identity</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="table-row">
+    <div class="panel panel-wide" id="panel-entitlements">
+      <div class="panel-header">
+        <div class="panel-header-left">
+          <h2>Entitlements</h2>
+          <div class="filter-wrap">
+            <button type="button" class="filter-btn" id="filter-btn" aria-haspopup="true" aria-expanded="false" title="Filter entitlements">
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 2h14l-5.2 6.2v4.3l-3.6 1.8V8.2z" fill="currentColor"/></svg>
+              Filter
+              <span class="filter-badge" id="filter-badge" hidden>0</span>
+            </button>
+          </div>
+        </div>
+        <span class="count" id="count-entitlements"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="resizable" id="table-entitlements">
+          <thead>
+            <tr>
+              <th data-col="permission">Permission</th>
+              <th data-col="resourceDisplayName">Resource</th>
+              <th data-col="category">Category</th>
+              <th data-col="attachmentScope">Attachment scope</th>
+              <th data-col="sourceCount">Sources</th>
+              <th data-col="roles">Source roles</th>
+            </tr>
+          </thead>
+          <tbody id="body-entitlements"></tbody>
+        </table>
+        <div class="empty-state" id="empty-entitlements">Select a service</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<aside class="panel policy-panel" id="policy-panel" hidden>
+  <div class="panel-header">
+    <h2>Policy binding details</h2>
+    <button type="button" class="icon-btn" id="policy-panel-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="policy-panel-body" id="policy-panel-body"></div>
+</aside>
+</div>
+
+<div class="filter-popover" id="filter-popover" hidden>
+  <div class="filter-popover-header">
+    <span>Filters</span>
+    <button type="button" class="link-btn" id="filter-clear">Clear all</button>
+  </div>
+  <div class="filter-groups" id="filter-groups"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

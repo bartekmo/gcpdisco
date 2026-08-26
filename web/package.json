@@ -1,0 +1,17 @@
+{
+  "name": "gcp-disco-web",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "Web app (API + static SPA) for browsing GCP identities/services/entitlements indexed in Redis.",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0"
+  }
+}
